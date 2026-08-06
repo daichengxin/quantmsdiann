@@ -1,8 +1,4 @@
 email_template.html
-# Project notification templates contain Groovy <% %> blocks that prettier cannot parse
-assets/adaptivecard.json
-assets/slackreport.json
-modules.json
 .nextflow*
 work/
 data/
@@ -16,7 +12,3 @@ bin/
 ro-crate-metadata.json
 modules/nf-core/
 subworkflows/nf-core/
-
-# Ignore potentially non-human-readable markdown files
-.github/**/SKILL.md
-AGENTS.md

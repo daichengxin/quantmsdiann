@@ -2,59 +2,37 @@
     "name": "bigbio/quantmsdiann",
     "homePage": "https://github.com/bigbio/quantmsdiann",
     "repos": {
-        "https://github.com/bigbio/nf-modules.git": {
-            "modules": {
-                "bigbio": {
-                    "pridepy": {
-                        "branch": "main",
-                        "git_sha": "2694907ec41be68998dab141be326f421e71eba6",
-                        "installed_by": [
-                            "modules"
-                        ]
-                    },
-                    "qpx": {
-                        "branch": "main",
-                        "git_sha": "dc3dcca1ab258b3a39dd817cfada480145b1964c",
-                        "installed_by": [
-                            "modules"
-                        ]
-                    },
-                    "thermorawfileparser": {
-                        "branch": "main",
-                        "git_sha": "daddf26d8c36e28dffe673949dc340ed6387de9a",
-                        "installed_by": [
-                            "modules"
-                        ]
-                    }
-                }
-            }
-        },
         "https://github.com/nf-core/modules.git": {
             "modules": {
-                "nf-core": {}
+                "nf-core": {
+                    "fastqc": {
+                        "branch": "master",
+                        "git_sha": "6d46786420b4d7bc88eba026eb389c0c5535d120",
+                        "installed_by": ["modules"]
+                    },
+                    "multiqc": {
+                        "branch": "master",
+                        "git_sha": "98403d15b0e50edae1f3fec5eae5e24982f1fade",
+                        "installed_by": ["modules"]
+                    }
+                }
             },
             "subworkflows": {
                 "nf-core": {
                     "utils_nextflow_pipeline": {
                         "branch": "master",
-                        "git_sha": "05954dab2ff481bcb999f24455da29a5828af08d",
-                        "installed_by": [
-                            "subworkflows"
-                        ]
+                        "git_sha": "c2b22d85f30a706a3073387f30380704fcae013b",
+                        "installed_by": ["subworkflows"]
                     },
                     "utils_nfcore_pipeline": {
                         "branch": "master",
                         "git_sha": "a3fb7351b1fdb2b1de282b765816bbea190e86a8",
-                        "installed_by": [
-                            "subworkflows"
-                        ]
+                        "installed_by": ["subworkflows"]
                     },
                     "utils_nfschema_plugin": {
                         "branch": "master",
-                        "git_sha": "fdc08b8b1ae74f56686ce21f7ea11ad11990ce57",
-                        "installed_by": [
-                            "subworkflows"
-                        ]
+                        "git_sha": "a7b27fd25bfa8dcc07d299e88bd790585901a436",
+                        "installed_by": ["subworkflows"]
                     }
                 }
             }

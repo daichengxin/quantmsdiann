@@ -2,165 +2,60 @@
 
 ## Introduction
 
-This document describes the output produced by the pipeline. Most plots are taken from the pmultiqc report, which summarises results at the end of the pipeline.
+This document describes the output produced by the pipeline. Most of the plots are taken from the MultiQC report, which summarises results at the end of the pipeline.
 
 The directories listed below will be created in the results directory after the pipeline has finished. All paths are relative to the top-level results directory.
 
+<!-- TODO nf-core: Write this documentation describing your workflow's output -->
+
 ## Pipeline overview
 
-The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes DIA data using the following steps:
+The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes data using the following steps:
 
-1. (Optional) Raw files are downloaded from PRIDE Archive using pridepy
-2. RAW data is converted to mzML using ThermoRawFileParser; SCIEX `.wiff` files are converted via WiffConverter; `.d` (Bruker) and `.dia` files are handled natively
-3. DIA-NN is used for identification and quantification of peptides and proteins
-4. DIA-NN report is converted to MSstats-compatible format
-5. Generation of QC reports using pmultiqc
+- [FastQC](#fastqc) - Raw read QC
+- [MultiQC](#multiqc) - Aggregate report describing results and QC from the whole pipeline
+- [Pipeline information](#pipeline-information) - Report metrics generated during the workflow execution
 
-## Output structure
+### FastQC
 
-Output will be saved to the folder defined by the parameter `--outdir`.
+<details markdown="1">
+<summary>Output files</summary>
 
-### Default Output Structure
+- `fastqc/`
+  - `*_fastqc.html`: FastQC report containing quality metrics.
+  - `*_fastqc.zip`: Zip archive containing the FastQC report, tab-delimited data file and plot images.
 
-```
-results/
-├── pipeline_info/             # Nextflow pipeline information
-├── pridepy/                   # (Optional) Downloaded raw files from PRIDE Archive
-├── sdrf/                      # SDRF files and configs
-├── quant_tables/              # Quantification tables and results
-│   ├── diann_report.{tsv,parquet}  # Main DIA-NN report
-│   ├── diann_report.pg_matrix.tsv  # Protein group matrix
-│   ├── diann_report.pr_matrix.tsv  # Precursor matrix
-│   ├── diann_report.gg_matrix.tsv  # Gene group matrix
-│   └── out_msstats_in.csv     # MSstats-compatible output
-└── pmultiqc/                  # pmultiqc reports
-    ├── multiqc_plots/
-    │   ├── png/
-    │   ├── svg/
-    │   └── pdf/
-    └── multiqc_data/
-```
+</details>
 
-### Verbose Output Structure
+[FastQC](http://www.bioinformatics.babraham.ac.uk/projects/fastqc/) gives general quality metrics about your sequenced reads. It provides information about the quality score distribution across your reads, per base sequence content (%A/T/G/C), adapter contamination and overrepresented sequences. For further reading and documentation see the [FastQC help pages](http://www.bioinformatics.babraham.ac.uk/projects/fastqc/Help/).
 
-For more detailed output with all intermediate files, use the verbose output configuration by providing `-profile verbose_modules`. This is useful for debugging or detailed analysis:
+### MultiQC
 
-```
-results/
-├── pipeline_info/
-├── sdrf/
-├── spectra/
-│   ├── thermorawfileparser/         # Converted raw files
-│   └── mzml_statistics/             # mzML file statistics
-├── database_generation/
-│   ├── insilico_library_generation/ # In silico library
-│   └── assemble_empirical_library/  # Empirical library
-├── diann_preprocessing/
-│   ├── preliminary_analysis/        # Preliminary analysis results
-│   └── individual_analysis/         # Individual analysis results
-├── quant_tables/
-└── pmultiqc/
-```
+<details markdown="1">
+<summary>Output files</summary>
 
-### Key Output Files
+- `multiqc/`
+  - `multiqc_report.html`: a standalone HTML file that can be viewed in your web browser.
+  - `multiqc_data/`: directory containing parsed statistics from the different tools used in the pipeline.
+  - `multiqc_plots/`: directory containing static images from the report in various formats.
 
-- **DIA-NN quantification results:**
-  - `quant_tables/diann_report.{tsv,parquet}` - Main DIA-NN report with peptide and protein quantification
-  - `quant_tables/diann_report.pr_matrix.tsv` - Precursor quantification matrix
-  - `quant_tables/diann_report.pg_matrix.tsv` - Protein group quantification matrix
-  - `quant_tables/diann_report.gg_matrix.tsv` - Gene group quantification matrix
-  - `quant_tables/diann_report.unique_genes_matrix.tsv` - Unique gene quantification matrix
-  - `quant_tables/out_msstats_in.csv` - MSstats-compatible quantification table
+</details>
 
-### Parquet vs TSV Output
+[MultiQC](http://multiqc.info) is a visualization tool that generates a single HTML report summarising all samples in your project. Most of the pipeline QC results are visualised in the report and further statistics are available in the report data directory.
 
-Starting with DIA-NN 2.0, the main report is produced in **Apache Parquet** format (`diann_report.parquet`) instead of the legacy TSV (`diann_report.tsv`). Parquet files are columnar, compressed, and significantly faster to load in downstream tools such as Python (pandas/pyarrow) or R (arrow).
+Results generated by MultiQC collate pipeline QC from supported tools e.g. FastQC. The pipeline has special steps which also allow the software versions to be reported in the MultiQC output for future traceability. For more information about how to use MultiQC reports, see <http://multiqc.info>.
 
-| DIA-NN Version | Main report format     | Matrix format |
-| -------------- | ---------------------- | ------------- |
-| 1.8.1          | `diann_report.tsv`     | `.tsv`        |
-| 2.1.0+         | `diann_report.parquet` | `.tsv`        |
+### Pipeline information
 
-The pipeline detects the DIA-NN version and handles the output format automatically. Downstream steps (MSstats conversion, pmultiqc) accept both formats.
+<details markdown="1">
+<summary>Output files</summary>
 
-To read Parquet files:
+- `pipeline_info/`
+  - Reports generated by Nextflow: `execution_report.html`, `execution_timeline.html`, `execution_trace.txt` and `pipeline_dag.dot`/`pipeline_dag.svg`.
+  - Reports generated by the pipeline: `pipeline_report.html`, `pipeline_report.txt` and `software_versions.yml`. The `pipeline_report*` files will only be present if the `--email` / `--email_on_fail` parameter's are used when running the pipeline.
+  - Reformatted samplesheet files used as input to the pipeline: `samplesheet.valid.csv`.
+  - Parameters used by the pipeline run: `params.json`.
 
-```python
-# Python
-import pandas as pd
-df = pd.read_parquet("diann_report.parquet")
-```
+</details>
 
-```r
-# R
-library(arrow)
-df <- read_parquet("diann_report.parquet")
-```
-
-### MSstats-Compatible Output
-
-The pipeline produces `quant_tables/out_msstats_in.csv`, an MSstats-compatible quantification table generated by `quantms-utils`. This file contains long-format precursor-level intensities with the columns required by the [MSstats](https://msstats.org/) R package for downstream statistical analysis (e.g. differential expression, sample-size estimation).
-
-Key columns include: `ProteinName`, `PeptideSequence`, `PrecursorCharge`, `FragmentIon`, `ProductCharge`, `IsotopeLabelType`, `Condition`, `BioReplicate`, `Run`, `Intensity`.
-
-The condition and biological replicate assignments are derived from the SDRF factor columns.
-
-### Optional Output Files
-
-These files are not published by default. Enable them with `save_*` parameters or `ext.*` config properties (see [Usage: Optional outputs](usage.md#optional-outputs)).
-
-- `library_generation/*.tsv` - TSV spectral library from in-silico library generation (`--save_speclib_tsv`)
-
-### QPX Export (Experimental, 2.1.0)
-
-When `--enable_qpx_export` is set, the pipeline produces a [QPX Parquet dataset](https://github.com/bigbio/qpx) and a [MuData](https://mudata.readthedocs.io/) `.h5mu` file under `results/qpx/`. `<prefix>` defaults to `diann`, overridden by `--project_accession`.
-
-- `<prefix>.feature.parquet` — precursor-level features
-- `<prefix>.pg.parquet` — protein-group intensities per run
-- `<prefix>.sample.parquet`, `<prefix>.run.parquet` — SDRF-derived metadata
-- `<prefix>.h5mu` — MuData with `precursors` and `proteins` modalities
-
-```python
-import mudata as mu
-mdata = mu.read("results/qpx/PXD019909.h5mu")
-```
-
-### Nextflow pipeline info
-
-[Nextflow](https://www.nextflow.io/docs/latest/tracing.html) provides excellent functionality for generating various reports relevant to the running and execution of the pipeline.
-
-`pipeline_info/`:
-
-- `execution_report.html` - Resource usage report
-- `execution_timeline.html` - Timeline visualization
-- `execution_trace.txt` - Detailed execution trace
-- `pipeline_dag.html` - DAG visualization
-- `software_versions.yml` - Software versions used
-- `params_<timestamp>.json` - The pipeline parameters **as supplied at launch** (CLI + config defaults)
-
-> [!IMPORTANT]
-> **`params_<timestamp>.json` records launch-time parameters, not the per-sample values resolved from the SDRF.**
-> Several search parameters — **modifications** (fixed and variable), **enzyme**, and **precursor/fragment mass tolerances** — are taken from the **SDRF at runtime, per sample**, and override the pipeline defaults. So an entry like `variable_mods: "Oxidation (M)"` or `precursor_mass_tolerance: 5` in `params.json` is the **default/fallback** and may not be what a given run actually used. Fixed modifications and enzyme have no pipeline parameter at all and therefore never appear in `params.json`.
->
-> The **authoritative record of what DIA-NN actually used** is in [`sdrf/`](#sdrf-parsing-outputs):
->
-> - `sdrf/diann_config.cfg` — the resolved DIA-NN flags (`--var-mod`, `--fixed-mod`, enzyme, etc.).
-> - `sdrf/diann_design.tsv` and the published SDRF — the per-sample experimental design.
->
-> Per-sample mass tolerances and m/z windows are applied directly on the DIA-NN command line for each file (visible in the verbose `diann_preprocessing/` logs / each task's `.command.sh`).
-
-### SDRF parsing outputs
-
-`sdrf/` contains the parsed experimental design and the configuration derived from the input SDRF — the **source of truth for modifications, enzyme, labelling, and tolerances** actually used by the run:
-
-- `diann_config.cfg` - DIA-NN configuration generated by `parse_sdrf convert-diann`, including the fixed/variable modifications (`--fixed-mod` / `--var-mod`) and enzyme.
-- `diann_design.tsv` - DIA-NN experiment design table.
-- the input SDRF (`*.sdrf.tsv`) - the original annotation the above is derived from.
-
-### pmultiqc
-
-All QC results are generated by [pmultiqc](https://github.com/bigbio/pmultiqc), a proteomics plugin for [MultiQC](http://multiqc.info). The interactive HTML report provides:
-
-- Identification and quantification metrics
-- Sample-level quality statistics
-- Pipeline software versions
+[Nextflow](https://docs.seqera.io/platform-cloud/reports/overview) provides excellent functionality for generating various reports relevant to the running and execution of the pipeline. This will allow you to troubleshoot errors with the running of the pipeline, and also provide you with other information such as launch commands, run times and resource usage.

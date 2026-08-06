@@ -1,878 +1,211 @@
 # bigbio/quantmsdiann: Usage
 
+> _Documentation of pipeline parameters is generated automatically from the pipeline schema and can no longer be found in markdown files._
+
 ## Introduction
 
-quantmsdiann is a Nextflow pipeline for DIA-NN-based quantitative mass spectrometry analysis.
+<!-- TODO nf-core: Add documentation about anything specific to running your pipeline. For general topics, please point to (and add to) the main nf-core website. -->
+
+## Samplesheet input
+
+You will need to create a samplesheet with information about the samples you would like to analyse before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row as shown in the examples below.
+
+```bash
+--input '[path to samplesheet file]'
+```
+
+### Multiple runs of the same sample
+
+The `sample` identifiers have to be the same when you have re-sequenced the same sample more than once e.g. to increase sequencing depth. The pipeline will concatenate the raw reads before performing any downstream analysis. Below is an example for the same sample sequenced across 3 lanes:
+
+```csv title="samplesheet.csv"
+sample,fastq_1,fastq_2
+CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
+CONTROL_REP1,AEG588A1_S1_L003_R1_001.fastq.gz,AEG588A1_S1_L003_R2_001.fastq.gz
+CONTROL_REP1,AEG588A1_S1_L004_R1_001.fastq.gz,AEG588A1_S1_L004_R2_001.fastq.gz
+```
+
+### Full samplesheet
+
+The pipeline will auto-detect whether a sample is single- or paired-end using the information provided in the samplesheet. The samplesheet can have as many columns as you desire, however, there is a strict requirement for the first 3 columns to match those defined in the table below.
+
+A final samplesheet file consisting of both single- and paired-end data may look something like the one below. This is for 6 samples, where `TREATMENT_REP3` has been sequenced twice.
+
+```csv title="samplesheet.csv"
+sample,fastq_1,fastq_2
+CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
+CONTROL_REP2,AEG588A2_S2_L002_R1_001.fastq.gz,AEG588A2_S2_L002_R2_001.fastq.gz
+CONTROL_REP3,AEG588A3_S3_L002_R1_001.fastq.gz,AEG588A3_S3_L002_R2_001.fastq.gz
+TREATMENT_REP1,AEG588A4_S4_L003_R1_001.fastq.gz,
+TREATMENT_REP2,AEG588A5_S5_L003_R1_001.fastq.gz,
+TREATMENT_REP3,AEG588A6_S6_L003_R1_001.fastq.gz,
+TREATMENT_REP3,AEG588A6_S6_L004_R1_001.fastq.gz,
+```
+
+| Column    | Description                                                                                                                                                                            |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sample`  | Custom sample name. This entry will be identical for multiple sequencing libraries/runs from the same sample. Spaces in sample names are automatically converted to underscores (`_`). |
+| `fastq_1` | Full path to FastQ file for Illumina short reads 1. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
+| `fastq_2` | Full path to FastQ file for Illumina short reads 2. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
+
+An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
 
 ## Running the pipeline
 
 The typical command for running the pipeline is as follows:
 
 ```bash
-nextflow run bigbio/quantmsdiann \
-    --input 'experiment.sdrf.tsv' \
-    --database 'proteins.fasta' \
-    --outdir './results' \
-    -profile docker
+nextflow run bigbio/quantmsdiann --input ./samplesheet.csv --outdir ./results --genome GRCh37 -profile docker
 ```
 
-The input file must be in [Sample-to-data-relationship format (SDRF)](https://pubs.acs.org/doi/abs/10.1021/acs.jproteome.0c00376) and **must use the `.sdrf.tsv` extension** — files ending in `.sdrf`, `.tsv`, or `.csv` are rejected at startup by schema validation.
+This will launch the pipeline with the `docker` configuration profile. See below for more information about profiles.
 
-### Minimal valid metadata example
-
-| source name | characteristics[organism] | characteristics[organism part] | characteristics[disease] | characteristics[biological replicate] | assay name | technology type                          | comment[technical replicate] | comment[data file]                                          | comment[file uri]                                                                                                            | comment[fraction identifier] | comment[label]    | comment[instrument]              | comment[proteomics data acquisition method] | comment[cleavage agent details] | comment[modification parameters]                         | comment[precursor mass tolerance] | comment[fragment mass tolerance] | factor value[condition]   |
-| :---------- | :------------------------ | :----------------------------- | :----------------------- | :------------------------------------ | :--------- | :--------------------------------------- | :--------------------------- | :---------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- | :--------------------------- | :---------------- | :------------------------------- | :------------------------------------------ | :------------------------------ | :------------------------------------------------------- | :-------------------------------- | :------------------------------- | :------------------------ |
-| Sample 1    | Homo sapiens              | not available                  | not available            | 1                                     | run 1      | proteomic profiling by mass spectrometry | 1                            | LFQ_Astral_DIA_Optimized_TE_15min_50ng_Condition_A_REP1.raw | https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/02/PXD071205/LFQ_Astral_DIA_Optimized_TE_15min_50ng_Condition_A_REP1.raw | 1                            | label free sample | NT=Orbitrap Astral;AC=MS:1003378 | data-independent acquisition                | NT=Trypsin/P                    | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 10 ppm                            | 20 ppm                           | Condition_A_TE_15min_50ng |
-| Sample 2    | Homo sapiens              | not available                  | not available            | 1                                     | run 2      | proteomic profiling by mass spectrometry | 1                            | LFQ_Astral_DIA_Optimized_TE_15min_50ng_Condition_B_REP1.raw | https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/02/PXD071205/LFQ_Astral_DIA_Optimized_TE_15min_50ng_Condition_B_REP1.raw | 1                            | label free sample | NT=Orbitrap Astral;AC=MS:1003378 | data-independent acquisition                | NT=Trypsin/P                    | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 10 ppm                            | 20 ppm                           | Condition_B_TE_15min_50ng |
-| Sample 3    | Homo sapiens              | not available                  | not available            | 1                                     | run 3      | proteomic profiling by mass spectrometry | 1                            | LFQ_Astral_DIA_Optimized_TE_15min_50ng_Condition_C_REP1.raw | https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/02/PXD071205/LFQ_Astral_DIA_Optimized_TE_15min_50ng_Condition_C_REP1.raw | 1                            | label free sample | NT=Orbitrap Astral;AC=MS:1003378 | data-independent acquisition                | NT=Trypsin/P                    | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 10 ppm                            | 20 ppm                           | Condition_C_TE_15min_50ng |
-| ...         | ...                       | ...                            | ...                      | ...                                   | ...        | ...                                      | ...                          | ...                                                         | ...                                                                                                                          | ...                          | ...               | ...                              | ...                                         | ...                             | ...                                                      | ...                               | ...                              | ...                       |
-
-You can download our ready-to-use minimal SDRF templates [here](minimal_sdrf_example/PXD071205_min.sdrf.tsv).
-
-#### How to adjust for different acquisition methods
-
-While the core SDRF columns remain the same, you need to adjust specific values depending on your experimental design:
-
-**For Label-Free DDA Datasets:** Ensure `comment[proteomics data acquisition method]` is set to **data-dependent acquisition**.
-
-**For Multiplexed Datasets (e.g., mTRAQ, SILAC):**
-| source name | characteristics[organism] | characteristics[organism part] | characteristics[disease] | characteristics[biological replicate] | assay name | technology type | comment[technical replicate] | comment[data file] | comment[file uri] | comment[fraction identifier] | comment[label] | comment[instrument] | comment[proteomics data acquisition method] | comment[cleavage agent details] | comment[modification parameters] | comment[precursor mass tolerance] | comment[fragment mass tolerance] | factor value[condition] |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| Sample_A_rep1 | Homo sapiens | cell culture | not available | 1 | run 1 | proteomic profiling by mass spectrometry | 1 | wJD803.raw | ftp://massive-ftp.ucsd.edu/v04/MSV000088302/raw/wJD803.raw | 1 | MTRAQ0 | NT=Q Exactive;AC=MS:1001911 | data-independent acquisition | NT=Trypsin;AC=MS:1001251 | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 5 ppm | 10 ppm | Sample_A |
-| Sample_B_rep1 | Homo sapiens | cell culture | not available | 1 | run 1 | proteomic profiling by mass spectrometry | 1 | wJD803.raw | ftp://massive-ftp.ucsd.edu/v04/MSV000088302/raw/wJD803.raw | 1 | MTRAQ4 | NT=Q Exactive;AC=MS:1001911 | data-independent acquisition | NT=Trypsin;AC=MS:1001251 | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 5 ppm | 10 ppm | Sample_B |
-| Sample_C_rep1 | Homo sapiens | cell culture | not available | 1 | run 1 | proteomic profiling by mass spectrometry | 1 | wJD803.raw | ftp://massive-ftp.ucsd.edu/v04/MSV000088302/raw/wJD803.raw | 1 | MTRAQ8 | NT=Q Exactive;AC=MS:1001911 | data-independent acquisition | NT=Trypsin;AC=MS:1001251 | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 5 ppm | 10 ppm | Sample_C |
-| Sample_A_rep2 | Homo sapiens | cell culture | not available | 1 | run 2 | proteomic profiling by mass spectrometry | 2 | wJD804.raw | ftp://massive-ftp.ucsd.edu/v04/MSV000088302/raw/wJD804.raw | 1 | MTRAQ0 | NT=Q Exactive;AC=MS:1001911 | data-independent acquisition | NT=Trypsin;AC=MS:1001251 | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 5 ppm | 10 ppm | Sample_A |
-| Sample_B_rep2 | Homo sapiens | cell culture | not available | 1 | run 2 | proteomic profiling by mass spectrometry | 2 | wJD804.raw | ftp://massive-ftp.ucsd.edu/v04/MSV000088302/raw/wJD804.raw | 1 | MTRAQ4 | NT=Q Exactive;AC=MS:1001911 | data-independent acquisition | NT=Trypsin;AC=MS:1001251 | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 5 ppm | 10 ppm | Sample_B |
-| Sample_C_rep2 | Homo sapiens | cell culture | not available | 1 | run 2 | proteomic profiling by mass spectrometry | 2 | wJD804.raw | ftp://massive-ftp.ucsd.edu/v04/MSV000088302/raw/wJD804.raw | 1 | MTRAQ8 | NT=Q Exactive;AC=MS:1001911 | data-independent acquisition | NT=Trypsin;AC=MS:1001251 | NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C | 5 ppm | 10 ppm | Sample_C |
-| ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... | ... |
-
-You can download our ready-to-use minimal SDRF templates [here](minimal_sdrf_example/MSV000088302_min.sdrf.tsv).
-
-### Supported file formats
-
-The pipeline supports the following mass spectrometry data file formats:
-
-- **`.raw`** - Thermo RAW files. Converted to `.mzML` via ThermoRawFileParser for DIA-NN < 2.1.0, passed through natively for DIA-NN >= 2.1.0. Control via `--mzml_convert`.
-- **`.mzML`** - Open standard mzML files
-- **`.d`** - Bruker timsTOF files (processed natively by DIA-NN)
-- **`.dia`** - DIA-NN native binary format (passed through without conversion)
-- **`.wiff`** - SCIEX wiff files. Each `.wiff` is paired with its `.wiff.scan` companion file and converted to indexed `.mzML` via [WiffConverter](https://github.com/bigbio/quantms-containers) (`ghcr.io/bigbio/wiffconverter:0.10`).
-
-Compressed variants are supported for `.raw`, `.mzML`, and `.d` formats: `.gz`, `.tar`, `.tar.gz`, `.zip`.
-
-#### SDRF columns for `.wiff` data
-
-To process `.wiff` files, the input SDRF must include two extra columns that `parse_sdrf convert-diann` (sdrf-pipelines >= 0.1.4) emits into the experimental design TSV consumed by the pipeline:
-
-- `IsWiff` — boolean (`true`/`false`) marking the row as a SCIEX wiff file. When `true`, the workflow routes the file through `WIFF_CONVERT`.
-- `Associated_URI` — URI/path to the companion `.wiff.scan` file. If empty, the pipeline falls back to `<wiff URI>.scan`.
-
-When using `--root_folder`, set `--local_input_type wiff` so the pipeline strips the SDRF extension and looks for `<sample>.wiff` plus `<sample>.wiff.scan` in your local folder.
-
-### Preprocessing Options
-
-The pipeline includes several preprocessing steps that can be controlled via parameters:
-
-- **`--reindex_mzml`** (default: `false`) -- Force re-indexing of input mzML files at the start of the pipeline. This fixes common issues with slightly incomplete or outdated mzML files. Outputs from ThermoRawFileParser and the wiff converter are already indexed, so this is off by default; enable it only when supplying pre-built mzML files that may be unindexed.
-
-- **`--mzml_statistics`** (default: `false`) -- Compute MS1/MS2 statistics from mzML files. When enabled, `*_ms_info.parquet` files are generated for each mzML file and used in QC reporting. Bruker `.d` files are always skipped by this step.
-
-- **`--mzml_features`** (default: `false`) -- Compute MS1-level features during the mzML statistics step. Only available for mzML files.
-
-- **`--mzml_convert`** (default: _auto_) -- Controls whether Thermo `.raw` files are converted to `.mzML` via ThermoRawFileParser before being fed to DIA-NN.
-
-  DIA-NN 2.1.0 (2025-03-25) added native Thermo `.raw` support on Linux, so the conversion step is no longer strictly required. Skipping it saves one container invocation and an I/O pass per `.raw` file — non-trivial on Astral-scale datasets.
-
-  | Setting                | Behaviour                                                                                                              |
-  | ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-  | unset (default)        | Auto: convert via TRFP for DIA-NN < 2.1.0, pass `.raw` through natively for DIA-NN >= 2.1.0.                           |
-  | `--mzml_convert true`  | Always convert `.raw` to `.mzML` via TRFP. Use this to enable `--mzml_statistics`, or as a workaround for DIA-NN bugs. |
-  | `--mzml_convert false` | Never convert. Pass `.raw` files straight to DIA-NN. Requires DIA-NN >= 2.1.0 (fails fast otherwise).                  |
-
-  The parameter has no effect when no `.raw` files are present in the input (e.g. all `.mzML`, `.d`, or `.dia`), or when `--local_input_type mzML` is combined with `--root_folder` so no `.raw` extensions reach the file-preparation branching step — the pipeline will emit a warning in that case.
-
-  > [!WARNING]
-  > DIA-NN's Linux Thermo reader has known issues on some acquisition schemes / instruments — see [DiaNN#1468](https://github.com/vdemichev/DiaNN/issues/1468) (`Instrument index not available for requested device`) and similar reports. If you hit such an issue, fall back to TRFP conversion with `--mzml_convert true`.
-  >
-  > Native `.raw` inputs do not produce `*_ms_info.parquet` QC files; combine `--mzml_convert true` with `--mzml_statistics true` if you need those statistics.
-
-### PRIDE Archive Download
-
-The pipeline can optionally download raw files directly from [PRIDE Archive](https://www.ebi.ac.uk/pride/) using [pridepy](https://github.com/PRIDE-Archive/pridepy) before analysis. This is useful when running the pipeline on a cluster without pre-staged data.
+Note that the pipeline will create the following files in your working directory:
 
 ```bash
-nextflow run bigbio/quantmsdiann \
-  --input experiment.sdrf.tsv \
-  --database proteins.fasta \
-  --pridepy_download \
-  --project_accession PXD001819 \
-  -profile docker
+work                # Directory containing the nextflow working files
+<OUTDIR>            # Finished results in specified location (defined with --outdir)
+.nextflow_log       # Log file from Nextflow
+# Other nextflow hidden files, eg. history of pipeline runs and old logs.
 ```
 
-| Parameter                    | Default  | Description                                                  |
-| ---------------------------- | -------- | ------------------------------------------------------------ |
-| `--pridepy_download`         | `false`  | Enable pre-downloading raw files from PRIDE Archive          |
-| `--project_accession`        | `null`   | PRIDE project accession (required when `--pridepy_download`) |
-| `--pridepy_protocol`         | `globus` | Download protocol (`globus`, `ftp`, `aspera`)                |
-| `--aspera_maximum_bandwidth` | `1000M`  | Maximum bandwidth for Aspera transfers                       |
+If you wish to repeatedly use the same parameters for multiple runs, rather than specifying each flag in the command, you can specify these in a params file.
 
-Downloaded files are resolved by filename in `CREATE_INPUT_CHANNEL` and passed to downstream processes. When `--pridepy_download` is not set, the pipeline behaves as before (expects files at URIs specified in the SDRF).
+Pipeline settings can be provided in a `yaml` or `json` file via `-params-file <file>`.
 
-### Bruker/timsTOF Data
+> [!WARNING]
+> Do not use `-c <file>` to specify parameters as this will result in errors. Custom config files specified with `-c` must only be used for [tuning process resource specifications](https://nf-co.re/docs/running/run-pipelines#configuring-pipelines), other infrastructural tweaks (such as output directories), or module arguments (args).
 
-For Bruker timsTOF datasets, DIA-NN recommends manually fixing MS1 and MS2 mass accuracy (typically 10-15 ppm) rather than using automatic calibration. There are two ways to set this:
-
-**Option 1 — SDRF columns (per-file control, recommended):**
-
-Set `PrecursorMassTolerance`, `PrecursorMassToleranceUnit`, `FragmentMassTolerance`, and `FragmentMassToleranceUnit` columns in your SDRF file. The pipeline reads these per-file and passes them to DIA-NN when `--mass_acc_automatic false` is set. This allows different tolerances for different files in the same experiment.
-
-**Option 2 — Pipeline parameters (global override):**
-
-```bash
-nextflow run bigbio/quantmsdiann \
-  --input experiment.sdrf.tsv \
-  --database proteins.fasta \
-  --mass_acc_automatic false \
-  --mass_acc_ms1 <value> \
-  --mass_acc_ms2 <value> \
-  -profile docker
-```
-
-For Synchro-PASEF data, enable `--tims_sum` (which adds `--quant-tims-sum` to DIA-NN).
-
-> [!NOTE]
-> The pipeline will emit a warning during PRELIMINARY_ANALYSIS if it detects `.d` files with automatic mass accuracy calibration enabled, recommending to set tolerances via SDRF or pipeline parameters.
-
-### DDA Analysis Mode (Beta)
-
-DIA-NN 2.3.2+ supports DDA data analysis via the `--dda` flag. The pipeline **auto-detects DDA mode** from the SDRF `comment[proteomics data acquisition method]` column — no extra flags needed if your SDRF contains `data-dependent acquisition`:
-
-```bash
-nextflow run bigbio/quantmsdiann \
-  --input dda_experiment.sdrf.tsv \
-  --database proteins.fasta \
-  -profile diann_v2_3_2,docker
-```
-
-If your SDRF does not include the acquisition method column, you can explicitly enable DDA mode with `--dda true`:
-
-```bash
-nextflow run bigbio/quantmsdiann \
-  --input experiment.sdrf.tsv \
-  --database proteins.fasta \
-  --dda true \
-  -profile diann_v2_3_2,docker
-```
-
-**Limitations (beta feature):**
-
-- Only trust: q-values, PEP values, RT/IM values, Ms1.Apex.Area, Normalisation.Factor
-- PTM localization probabilities are **unreliable** with DDA data
-- MBR requires MS2-level evidence (DIA-like, not classical DDA MBR)
-- No isobaric labeling or reporter-tag quantification
-- Primary use cases: legacy DDA reanalysis, spectral library creation, immunopeptidomics
-
-The pipeline uses the same workflow for DDA as DIA — the `--dda` flag is passed to all DIA-NN steps automatically when DDA is detected from the SDRF or enabled via `--dda`.
-
-### Preprocessing Options
-
-- `--reindex_mzml` (default: false) — Re-index mzML files before processing. Enable with `--reindex_mzml true` only when supplying pre-built mzML files that may be unindexed (TRFP and the wiff converter already emit indexed mzML).
-- `--mzml_statistics` (default: false) — Generate mzML statistics (parquet format) for QC.
-- `--mzml_features` (default: false) — Enable feature detection in mzML statistics.
-
-Bruker `.d` files are supported natively by the current workflow and are passed directly to DIA-NN; there is no `--convert_dotd` preprocessing option.
-
-### Passing Extra Arguments to DIA-NN
-
-Use `--extra_args` to pass additional flags to all DIA-NN steps. The pipeline validates and strips flags it manages internally to prevent conflicts.
-
-Managed flags (stripped with a warning if passed via extra_args): `--lib`, `--f`, `--fasta`, `--threads`, `--verbose`, `--temp`, `--out`, `--matrices`, `--use-quant`, `--gen-spec-lib`, `--mass-acc`, `--mass-acc-ms1`, `--window`, `--var-mod`, `--fixed-mod`, `--monitor-mod`, and others.
-
-To enable this, add `includeConfig 'conf/modules/dia.config'` to your configuration (already included by default).
-
-### DIA-NN Version Selection
-
-The default DIA-NN version is 1.8.1. To use a different version:
-
-| Version | Profile                 | Features                            |
-| ------- | ----------------------- | ----------------------------------- |
-| 1.8.1   | (default)               | Core DIA analysis                   |
-| 2.1.0   | `-profile diann_v2_1_0` | Native .raw support, reduced memory |
-| 2.2.0   | `-profile diann_v2_2_0` | Speed optimizations                 |
-| 2.3.2   | `-profile diann_v2_3_2` | DDA support, InfinDIA               |
-| 2.5.0   | `-profile diann_v2_5_0` | +70% protein IDs, model fine-tuning |
-| 2.5.1   | `-profile diann_v2_5_1` | Academic build of DIA-NN 2.5.1      |
-
-Example: `nextflow run bigbio/quantmsdiann -profile test_dia,docker,diann_v2_2_0`
-
-> [!IMPORTANT]
-> DIA-NN's license only permits public redistribution of **version 1.8.1**, which
-> is pulled automatically from BioContainers (`docker.io/biocontainers/diann:v1.8.1_cv1`).
-> Containers for **1.9 and later are not public**: build them locally from the
-> [`quantms-containers`](https://github.com/bigbio/quantms-containers) recipes and
-> tag the image `ghcr.io/bigbio/diann:<version>` so the matching
-> `-profile diann_v<version>` resolves it, e.g.
-> `cd quantms-containers/diann-2.5.0 && docker build -t ghcr.io/bigbio/diann:2.5.0 .`
-
-### Verbose Module Output
-
-Use `-profile verbose_modules` to publish intermediate files from all pipeline steps:
-
-```bash
-nextflow run bigbio/quantmsdiann -profile test_dia,docker,verbose_modules --outdir results
-```
-
-This publishes ThermoRawFileParser conversions, mzML indexing results, per-file DIA-NN logs, and spectral library intermediates.
-
-### Pipeline settings via params file
-
-Pipeline settings can be provided in a `yaml` or `json` file via `-params-file <file>`:
+The above pipeline run specified with a params file in yaml format:
 
 ```bash
 nextflow run bigbio/quantmsdiann -profile docker -params-file params.yaml
 ```
 
-```yaml
-input: "./experiment.sdrf.tsv"
-database: "./proteins.fasta"
-outdir: "./results"
+with:
+
+```yaml title="params.yaml"
+input: './samplesheet.csv'
+outdir: './results/'
+genome: 'GRCh37'
+<...>
 ```
 
-> [!WARNING]
-> Do not use `-c <file>` to specify parameters. Custom config files specified with `-c` must only be used for [tuning process resource specifications](https://nf-co.re/docs/usage/configuration#tuning-workflow-resources) or module arguments.
+You can also generate such `YAML`/`JSON` files via [nf-core/launch](https://nf-co.re/launch).
+
+### Updating the pipeline
+
+When you run the above command, Nextflow automatically pulls the pipeline code from GitHub and stores it as a cached version. When running the pipeline after this, it will always use the cached version if available - even if the pipeline has been updated since. To make sure that you're running the latest version of the pipeline, make sure that you regularly update the cached version of the pipeline:
+
+```bash
+nextflow pull bigbio/quantmsdiann
+```
 
 ### Reproducibility
 
-Specify the pipeline version when running on your data:
+It is a good idea to specify the pipeline version when running the pipeline on your data. This ensures that a specific version of the pipeline code and software are used when you run your pipeline. If you keep using the same tag, you'll be running the same version of the pipeline, even if there have been changes to the code since.
 
-```bash
-nextflow run bigbio/quantmsdiann -r 2.0.0 -profile docker --input experiment.sdrf.tsv --database db.fasta --outdir results
-```
+First, go to the [bigbio/quantmsdiann releases page](https://github.com/bigbio/quantmsdiann/releases) and find the latest pipeline version - numeric only (eg. `1.3.1`). Then specify this when running the pipeline with `-r` (one hyphen) - eg. `-r 1.3.1`. Of course, you can switch to another version by changing the number after the `-r` flag.
+
+This version number will be logged in reports when you run the pipeline, so that you'll know what you used when you look back in the future. For example, at the bottom of the MultiQC reports.
+
+To further assist in reproducibility, you can use share and reuse [parameter files](#running-the-pipeline) to repeat pipeline runs with the same settings without having to write out a command with every single parameter.
+
+> [!TIP]
+> If you wish to share such profile (such as upload as supplementary material for academic publications), make sure to NOT include cluster specific paths to files, nor institutional specific profiles.
 
 ## Core Nextflow arguments
 
+> [!NOTE]
+> These options are part of Nextflow and use a _single_ hyphen (pipeline parameters use a double-hyphen)
+
 ### `-profile`
 
-Use this parameter to choose a configuration profile:
+Use this parameter to choose a configuration profile. Profiles can give configuration presets for different compute environments.
 
-- `docker` - Run with Docker containers
-- `singularity` - Run with Singularity containers
-- `podman` - Run with Podman containers
-- `apptainer` - Run with Apptainer containers
+Several generic profiles are bundled with the pipeline which instruct the pipeline to use software packaged using different methods (Docker, Singularity, Podman, Shifter, Charliecloud, Apptainer, Conda) - see below.
 
-Multiple profiles can be loaded: `-profile test_dia,docker`
+> [!IMPORTANT]
+> We highly recommend the use of Docker or Singularity containers for full pipeline reproducibility, however when this is not possible, Conda is also supported.
+
+The pipeline also dynamically loads configurations from [https://github.com/nf-core/configs](https://github.com/nf-core/configs) when it runs, making multiple config profiles for various institutional clusters available at run time. For more information and to check if your system is supported, please see the [nf-core/configs documentation](https://github.com/nf-core/configs#documentation).
+
+Note that multiple profiles can be loaded, for example: `-profile test,docker` - the order of arguments is important!
+They are loaded in sequence, so later profiles can overwrite earlier profiles.
+
+If `-profile` is not specified, the pipeline will run locally and expect all software to be installed and available on the `PATH`. This is _not_ recommended, since it can lead to different results on different machines dependent on the computer environment.
+
+- `test`
+  - A profile with a complete configuration for automated testing
+  - Includes links to test data so needs no other parameters
+- `docker`
+  - A generic configuration profile to be used with [Docker](https://docker.com/)
+- `singularity`
+  - A generic configuration profile to be used with [Singularity](https://sylabs.io/docs/)
+- `podman`
+  - A generic configuration profile to be used with [Podman](https://podman.io/)
+- `shifter`
+  - A generic configuration profile to be used with [Shifter](https://nersc.gitlab.io/development/shifter/how-to-use/)
+- `charliecloud`
+  - A generic configuration profile to be used with [Charliecloud](https://charliecloud.io/)
+- `apptainer`
+  - A generic configuration profile to be used with [Apptainer](https://apptainer.org/)
+- `wave`
+  - A generic configuration profile to enable [Wave](https://seqera.io/wave/) containers. Use together with one of the above (requires Nextflow `24.03.0-edge` or later).
+- `conda`
+  - A generic configuration profile to be used with [Conda](https://conda.io/docs/). Please only use Conda as a last resort i.e. when it's not possible to run the pipeline with Docker, Singularity, Podman, Shifter, Charliecloud, or Apptainer.
 
 ### `-resume`
 
-Resume from cached results:
+Specify this when restarting a pipeline. Nextflow will use cached results from any pipeline steps where the inputs are the same, continuing from where it got to previously. For input to be considered the same, not only the names must be identical but the files' contents as well. For more info about this parameter, see [this blog post](https://www.nextflow.io/blog/2019/demystifying-nextflow-resume.html).
 
-```bash
-nextflow run bigbio/quantmsdiann -profile test_dia,docker --outdir results -resume
-```
+You can also supply a run name to resume a specific run: `-resume [run-name]`. Use the `nextflow log` command to show previous run names.
 
-## Test profiles
+### `-c`
 
-```bash
-# Quick DIA test
-nextflow run . -profile test_dia,docker --outdir results
-
-# DIA with Bruker .d files
-nextflow run . -profile test_dia_dotd,docker --outdir results
-
-# Latest DIA-NN version (2.5.0)
-nextflow run . -profile test_latest_dia,docker --outdir results
-```
-
-## DIA-NN parameters
-
-The pipeline passes parameters to DIA-NN at different steps. Some parameters come from the SDRF metadata (per-file), some from `nextflow.config` defaults, and some from the command line. The table below documents each parameter, its source, and which pipeline steps use it.
-
-### Parameter sources
-
-Parameters are resolved in this priority order:
-
-1. **SDRF metadata** (per-file, from `convert-diann` design file) — highest priority
-2. **Pipeline parameters** (`--param_name` on command line or params file)
-3. **Nextflow defaults** (`nextflow.config`) — lowest priority
-
-### Pipeline steps
-
-| Step                            | Description                                                         |
-| ------------------------------- | ------------------------------------------------------------------- |
-| **INSILICO_LIBRARY_GENERATION** | Predicts a spectral library from FASTA using DIA-NN's deep learning |
-| **PRELIMINARY_ANALYSIS**        | Per-file calibration and mass accuracy estimation (first pass)      |
-| **ASSEMBLE_EMPIRICAL_LIBRARY**  | Builds consensus empirical library from preliminary results         |
-| **INDIVIDUAL_ANALYSIS**         | Per-file quantification with the empirical library (second pass)    |
-| **FINAL_QUANTIFICATION**        | Aggregates all files into protein/peptide matrices                  |
-
-### Per-file parameters from SDRF
-
-These parameters are extracted per-file from the SDRF via `convert-diann` and stored in `diann_design.tsv`:
-
-| DIA-NN flag      | SDRF column                                        | Design column            | Steps                   | Notes                                           |
-| ---------------- | -------------------------------------------------- | ------------------------ | ----------------------- | ----------------------------------------------- |
-| `--mass-acc-ms1` | `comment[precursor mass tolerance]`                | `PrecursorMassTolerance` | PRELIMINARY, INDIVIDUAL | Falls back to auto-detect if missing or not ppm |
-| `--mass-acc`     | `comment[fragment mass tolerance]`                 | `FragmentMassTolerance`  | PRELIMINARY, INDIVIDUAL | Falls back to auto-detect if missing or not ppm |
-| `--min-pr-mz`    | `comment[ms1 scan range]` or `comment[ms min mz]`  | `MS1MinMz`               | PRELIMINARY, INDIVIDUAL | Per-file for GPF; global broadest for INSILICO  |
-| `--max-pr-mz`    | `comment[ms1 scan range]` or `comment[ms max mz]`  | `MS1MaxMz`               | PRELIMINARY, INDIVIDUAL | Per-file for GPF; global broadest for INSILICO  |
-| `--min-fr-mz`    | `comment[ms2 scan range]` or `comment[ms2 min mz]` | `MS2MinMz`               | PRELIMINARY, INDIVIDUAL | Per-file for GPF; global broadest for INSILICO  |
-| `--max-fr-mz`    | `comment[ms2 scan range]` or `comment[ms2 max mz]` | `MS2MaxMz`               | PRELIMINARY, INDIVIDUAL | Per-file for GPF; global broadest for INSILICO  |
-
-### Global parameters from config
-
-These parameters apply globally across all files. They are set in `diann_config.cfg` (from SDRF) or as pipeline parameters:
-
-| DIA-NN flag                                   | Pipeline parameter                                 | Default                                         | Steps                                    | Notes                                                           |
-| --------------------------------------------- | -------------------------------------------------- | ----------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
-| `--cut`                                       | (from SDRF enzyme)                                 | —                                               | ALL                                      | Enzyme cut rule, derived from `comment[cleavage agent details]` |
-| `--fixed-mod`                                 | (from SDRF)                                        | —                                               | ALL                                      | Fixed modifications from `comment[modification parameters]`     |
-| `--var-mod`                                   | (from SDRF)                                        | —                                               | ALL                                      | Variable modifications from `comment[modification parameters]`  |
-| `--monitor-mod`                               | `--enable_mod_localization` + `--mod_localization` | `false` / `Phospho (S),Phospho (T),Phospho (Y)` | PRELIMINARY, ASSEMBLE, INDIVIDUAL, FINAL | PTM site localization scoring (DIA-NN 1.8.x only)               |
-| `--window`                                    | `--scan_window`                                    | `8`                                             | PRELIMINARY, ASSEMBLE, INDIVIDUAL        | Scan window; auto-detected when `--scan_window_automatic=true`  |
-| `--quick-mass-acc`                            | `--quick_mass_acc`                                 | `true`                                          | PRELIMINARY                              | Fast mass accuracy calibration                                  |
-| `--min-corr 2 --corr-diff 1 --time-corr-only` | `--performance_mode`                               | `true`                                          | PRELIMINARY                              | High-speed, low-RAM mode                                        |
-| `--pg-level`                                  | `--pg_level`                                       | `2`                                             | INDIVIDUAL, FINAL                        | Protein grouping level                                          |
-| `--species-genes`                             | `--species_genes`                                  | `false`                                         | FINAL                                    | Use species-specific gene names                                 |
-| `--no-norm`                                   | `--normalize`                                      | `true`                                          | FINAL                                    | Disable normalization when `false`                              |
-
-### PTM site localization (`--monitor-mod`)
-
-DIA-NN supports PTM site localization scoring via `--monitor-mod`. When enabled, DIA-NN reports `PTM.Site.Confidence` and `PTM.Q.Value` columns for the specified modifications.
-
-**Important**: `--monitor-mod` is applied to all DIA-NN steps **except INSILICO_LIBRARY_GENERATION** (where it has no effect). It is particularly important for:
-
-- **PRELIMINARY_ANALYSIS**: Affects PTM-aware scoring during calibration.
-- **ASSEMBLE_EMPIRICAL_LIBRARY**: Strongly affects empirical library generation for PTM peptides.
-- **INDIVIDUAL_ANALYSIS** and **FINAL_QUANTIFICATION**: Enables PTM site confidence scoring.
-
-Note: For DIA-NN 2.0+, `--monitor-mod` is no longer needed — PTM localization is handled automatically by `--var-mod`. The flag is only used for DIA-NN 1.8.x.
-
-To enable PTM site localization:
-
-```bash
-nextflow run bigbio/quantmsdiann \
-    --enable_mod_localization \
-    --mod_localization 'Phospho (S),Phospho (T),Phospho (Y)' \
-    ...
-```
-
-The parameter accepts two formats:
-
-- **Modification names** (quantms-compatible): `Phospho (S),Phospho (T),Phospho (Y)` — site info in parentheses is stripped, the base name is mapped to UniMod
-- **UniMod accessions** (direct): `UniMod:21,UniMod:1`
-
-Supported modification name mappings:
-
-| Name        | UniMod ID    | Example                               |
-| ----------- | ------------ | ------------------------------------- |
-| Phospho     | `UniMod:21`  | `Phospho (S),Phospho (T),Phospho (Y)` |
-| GlyGly      | `UniMod:121` | `GlyGly (K)`                          |
-| Acetyl      | `UniMod:1`   | `Acetyl (Protein N-term)`             |
-| Oxidation   | `UniMod:35`  | `Oxidation (M)`                       |
-| Deamidated  | `UniMod:7`   | `Deamidated (N),Deamidated (Q)`       |
-| Methylation | `UniMod:34`  | `Methylation (K),Methylation (R)`     |
-
-## Reproducing a DIA-NN GUI run
-
-If you have an existing DIA-NN GUI (workstation) run and want to reproduce its results in `quantmsdiann`, the most reliable starting point is the first line of the GUI's `report.log.txt`, which contains the literal `diann.exe` command line. Translate that into pipeline parameters using the table below.
-
-### Where each GUI flag goes
-
-| GUI flag (from `report.log.txt`)                                                                                        | quantmsdiann equivalent                                                                                                                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--fasta <db>`, `--fasta-search`, `--predictor`                                                                         | Set automatically by INSILICO_LIBRARY_GENERATION when `--diann_speclib` is unset.                                                                                                                                                                                                                                                           |
-| `--missed-cleavages N`                                                                                                  | `allowed_missed_cleavages: N`                                                                                                                                                                                                                                                                                                               |
-| `--min-pep-len`, `--max-pep-len`                                                                                        | `min_peptide_length`, `max_peptide_length`                                                                                                                                                                                                                                                                                                  |
-| `--min-pr-charge`, `--max-pr-charge`                                                                                    | `min_precursor_charge`, `max_precursor_charge`                                                                                                                                                                                                                                                                                              |
-| `--min-pr-mz`, `--max-pr-mz`, `--min-fr-mz`, `--max-fr-mz`                                                              | `min_pr_mz`, `max_pr_mz`, `min_fr_mz`, `max_fr_mz`                                                                                                                                                                                                                                                                                          |
-| `--met-excision`                                                                                                        | `met_excision: true`                                                                                                                                                                                                                                                                                                                        |
-| `--unimod4` (Carbamidomethyl-C fixed)                                                                                   | Declare via SDRF: `comment[modification parameters]` = `NT=Carbamidomethyl;MT=Fixed;TA=C;AC=UNIMOD:4`.                                                                                                                                                                                                                                      |
-| `--var-mod UniMod:35,15.994915,M` (Oxidation-M variable)                                                                | Declare via SDRF: `comment[modification parameters]` = `NT=Oxidation;MT=Variable;TA=M;AC=UNIMOD:35`.                                                                                                                                                                                                                                        |
-| `--mass-acc 15 --mass-acc-ms1 15` (fixed tolerances)                                                                    | `mass_acc_automatic: false`, `mass_acc_ms1: 15`, `mass_acc_ms2: 15`.                                                                                                                                                                                                                                                                        |
-| (no `--mass-acc`; GUI auto)                                                                                             | `mass_acc_automatic: true` (the default). **Not recommended for Bruker timsTOF** — see [Bruker/timsTOF Data](#brukertimstof-data).                                                                                                                                                                                                          |
-| `--reanalyse` (MBR / shared-library two-pass)                                                                           | **No equivalent flag — already done by the pipeline architecture.** PRELIMINARY_ANALYSIS → ASSEMBLE_EMPIRICAL_LIBRARY → INDIVIDUAL_ANALYSIS implements the same shared-library, per-run-search behaviour. Do not pass `--reanalyse` via `--extra_args`.                                                                                     |
-| `--relaxed-prot-inf`                                                                                                    | Opt-in via `relaxed_prot_inf: true` (default `false`). By default the pipeline uses DIA-NN's **standard** protein inference (no flag) in INDIVIDUAL_ANALYSIS + FINAL_QUANTIFICATION. Mutually exclusive with `no_prot_inf: true` (`--no-prot-inf`, reuse the empirical-library inference). (`pg_level: 2` = genes is the matching default.) |
-| `--smart-profiling`                                                                                                     | Pass via `--extra_args '--smart-profiling'`.                                                                                                                                                                                                                                                                                                |
-| `--peak-center`                                                                                                         | Pass via `--extra_args '--peak-center'`.                                                                                                                                                                                                                                                                                                    |
-| `--no-ifs-removal`                                                                                                      | Set automatically for DIA-NN < 2.3 (removed upstream in 2.3+).                                                                                                                                                                                                                                                                              |
-| `--qvalue 0.01`                                                                                                         | DIA-NN default; `protein_level_fdr_cutoff: 0.01` controls pmultiqc filtering.                                                                                                                                                                                                                                                               |
-| `--matrices`, `--out`, `--out-lib`, `--gen-spec-lib`, `--lib`, `--threads`, `--verbose`, `--temp`, `--f`, `--use-quant` | Managed by the pipeline. Do not pass them.                                                                                                                                                                                                                                                                                                  |
-| `--strip-unknown-mods` (predict modifications the DL predictor does not recognise)                                      | Set `strip_unknown_mods: true`. Forces DIA-NN to predict spectra/RTs/IMs for declared modifications its predictor does not recognise. Without it, in-silico library generation silently _skips_ those precursors (log: `skipping N precursors, unrecognised modifications`), so they never enter the library and are never identified.      |
-
-#### Protein inference
-
-DIA-NN's **default is heuristic protein inference, on by default** — in DIA-NN's own words, _"the
-easiest way to analyse things for most experiments"_ ([Discussion #680](https://github.com/vdemichev/DiaNN/discussions/680)).
-The pipeline follows that default: out of the box neither `--relaxed-prot-inf` nor `--no-prot-inf` is
-passed, so DIA-NN performs its standard maximum-parsimony (greedy set-cover) grouping. Two **mutually
-exclusive, opt-in** parameters override this on the report-producing second-pass steps
-(`INDIVIDUAL_ANALYSIS` + `FINAL_QUANTIFICATION`):
-
-| param                     | flag                 | effect                                                                                   |
-| ------------------------- | -------------------- | ---------------------------------------------------------------------------------------- |
-| _(both `false`, default)_ | _(none)_             | **DIA-NN standard heuristic inference** (greedy set-cover grouping)                      |
-| `relaxed_prot_inf: true`  | `--relaxed-prot-inf` | FragPipe/Spectronaut-style grouping — each shared peptide assigned to a single group     |
-| `no_prot_inf: true`       | `--no-prot-inf`      | disable inference; keep the protein groups exactly as defined in the (empirical) library |
-
-**What `--relaxed-prot-inf` changes** — DIA-NN's own example ([Discussion #107](https://github.com/vdemichev/DiaNN/discussions/107)): if peptide X can come from proteins A & B, Y from B & C, and Z from A & C, then the **default** reports the groups `A;B` (X), `B;C` (Y), `A;C` (Z), while **`--relaxed-prot-inf`** reports `A` (X) and `C` (Y, Z) — each shared peptide assigned to one protein, as FragPipe/Spectronaut do.
-
-`--no-prot-inf` is **not** part of DIA-NN's documented defaults. It turns inference off so every second-pass step reuses the empirical-library grouping rather than re-inferring — useful for benchmarking, but a deliberate deviation from DIA-NN's standard behaviour. DIA-NN's general guidance is to _"keep settings default, unless recommended otherwise for the specific scenario"_ ([Discussion #316](https://github.com/vdemichev/DiaNN/discussions/316)).
-
-Notes:
-
-- `PRELIMINARY_ANALYSIS` always uses `--no-prot-inf` (a mass-accuracy calibration pass — no inference needed); the parameters do not affect it.
-- `INSILICO_LIBRARY_GENERATION` and `ASSEMBLE_EMPIRICAL_LIBRARY` build libraries and do **no** protein inference, so these flags have no effect there.
-- These flags are pipeline-managed: set them via the parameters above, **not** `--extra_args` (they are stripped from `extra_args` with a warning, in every DIA-NN step).
-
-### Worked example
-
-Given this GUI command line from `report.log.txt`:
-
-```
-diann.exe --f <runs> --lib --threads 16 --verbose 1 --out report.tsv --qvalue 0.01 --matrices \
-  --out-lib lib.tsv --gen-spec-lib --predictor --fasta UP000005640.fasta --fasta-search \
-  --min-fr-mz 200 --max-fr-mz 1000 --met-excision --cut K*,R* --missed-cleavages 2 \
-  --min-pep-len 7 --max-pep-len 30 --min-pr-mz 400 --max-pr-mz 1000 \
-  --min-pr-charge 2 --max-pr-charge 4 --unimod4 --var-mods 1 --var-mod UniMod:35,15.994915,M \
-  --mass-acc 15 --mass-acc-ms1 15 --reanalyse --relaxed-prot-inf \
-  --smart-profiling --peak-center --no-ifs-removal
-```
-
-The equivalent `params.yml` is:
-
-```yaml
-input: experiment.sdrf.tsv # SDRF declares Carbamidomethyl(C) fixed and Oxidation(M) variable
-database: UP000005640.fasta
-allowed_missed_cleavages: 2
-min_peptide_length: 7
-max_peptide_length: 30
-min_precursor_charge: 2
-max_precursor_charge: 4
-min_pr_mz: 400
-max_pr_mz: 1000
-min_fr_mz: 200
-max_fr_mz: 1000
-met_excision: true
-mass_acc_automatic: false # GUI used fixed tolerances; required for Bruker timsTOF
-mass_acc_ms1: 15
-mass_acc_ms2: 15
-pg_level: 2
-extra_args: "--smart-profiling --peak-center"
-```
-
-### Common pitfalls
-
-- **Auto mass accuracy on Bruker `.d` files.** The pipeline default `mass_acc_automatic: true` runs `--quick-mass-acc` per file. For timsTOF data this can lock in a poor window on low-input samples; the GUI typically uses the user-supplied 10–15 ppm. Always set `mass_acc_automatic: false` for `.d` inputs (the pipeline emits a warning when it detects this combination).
-- **Passing `--reanalyse` via `--extra_args`.** It will be stripped or it will collide with the pipeline's empirical-library two-pass. Leave it out.
-- **Setting Carbamidomethyl(C) via parameters.** Modifications come from the SDRF, not from `params.yml`. If your GUI run had `--unimod4`, make sure the SDRF declares Carbamidomethyl(C) as fixed.
-- **Different DIA-NN version.** A pipeline run with `-profile diann_v2_3_2` will not match a 1.8.1 GUI run even with identical flags. Pin the same version in both places when comparing.
-- **Non-standard PTMs silently lost.** If a declared variable modification is not recognised by the DIA-NN deep-learning predictor, in-silico library generation **skips those precursors** unless you set `strip_unknown_mods: true`. Check the `INSILICO_LIBRARY_GENERATION` log for `skipping N precursors, unrecognised modifications` — a non-zero `N` means those peptidoforms never entered the library.
-
-## Passing Extra Arguments to DIA-NN
-
-The `--extra_args` parameter appends additional DIA-NN command-line flags to **all** DIA-NN steps (INSILICO_LIBRARY_GENERATION, PRELIMINARY_ANALYSIS, ASSEMBLE_EMPIRICAL_LIBRARY, INDIVIDUAL_ANALYSIS, FINAL_QUANTIFICATION).
-
-```bash
-nextflow run bigbio/quantmsdiann \
-    --extra_args '--smart-profiling --peak-center' \
-    ...
-```
-
-Flags that conflict with a specific step are **automatically stripped** with a warning. Each module maintains its own block list of managed flags. The table below summarises the key blocked flags per step:
-
-| Step                        | Key blocked flags (managed by pipeline)                                                                                                                                                                                                                                          |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| INSILICO_LIBRARY_GENERATION | `--fasta`, `--fasta-search`, `--gen-spec-lib`, `--predictor`, `--lib`, `--missed-cleavages`, `--min-pep-len`, `--max-pep-len`, `--min-pr-charge`, `--max-pr-charge`, `--var-mods`, `--min-pr-mz`, `--max-pr-mz`, `--min-fr-mz`, `--max-fr-mz`, `--met-excision`, `--monitor-mod` |
-| PRELIMINARY_ANALYSIS        | `--mass-acc`, `--mass-acc-ms1`, `--window`, `--quick-mass-acc`, `--min-corr`, `--corr-diff`, `--time-corr-only`, `--min-pr-mz`, `--max-pr-mz`, `--min-fr-mz`, `--max-fr-mz`, `--monitor-mod`, `--var-mod`, `--fixed-mod`                                                         |
-| ASSEMBLE_EMPIRICAL_LIBRARY  | `--mass-acc`, `--mass-acc-ms1`, `--window`, `--individual-mass-acc`, `--individual-windows`, `--out-lib`, `--gen-spec-lib`, `--rt-profiling`, `--monitor-mod`, `--var-mod`, `--fixed-mod`                                                                                        |
-| INDIVIDUAL_ANALYSIS         | `--mass-acc`, `--mass-acc-ms1`, `--window`, `--pg-level`, `--relaxed-prot-inf`, `--no-ifs-removal`, `--min-pr-mz`, `--max-pr-mz`, `--min-fr-mz`, `--max-fr-mz`, `--monitor-mod`, `--var-mod`, `--fixed-mod`                                                                      |
-| FINAL_QUANTIFICATION        | `--pg-level`, `--species-genes`, `--no-norm`, `--report-decoys`, `--xic`, `--qvalue`, `--window`, `--individual-windows`, `--monitor-mod`, `--var-mod`, `--fixed-mod`                                                                                                            |
-
-All steps also block shared infrastructure flags: `--out`, `--temp`, `--threads`, `--verbose`, `--lib`, `--f`, `--fasta`, `--use-quant`, `--matrices`, `--no-main-report`.
-
-For step-specific overrides that bypass this mechanism, use custom Nextflow config files with `ext.args`:
-
-```groovy
-// custom.config -- add a flag only to FINAL_QUANTIFICATION
-process {
-    withName: '.*:FINAL_QUANTIFICATION' {
-        ext.args = '--my-special-flag'
-    }
-}
-```
-
-## DIA-NN Version Selection
-
-The pipeline supports multiple DIA-NN versions via built-in Nextflow profiles. Each profile sets `params.diann_version` and overrides the container image for all `diann`-labelled processes.
-
-| Profile                   | DIA-NN Version     | Container                                  | Key features                                                                                                                                 |
-| ------------------------- | ------------------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `diann_v1_8_1`            | 1.8.1              | `docker.io/biocontainers/diann:v1.8.1_cv1` | Default. Public BioContainers image. TSV output.                                                                                             |
-| `diann_v2_1_0`            | 2.1.0              | `ghcr.io/bigbio/diann:2.1.0`               | Parquet output. Native .raw on Linux. QuantUMS (`--quantums`).                                                                               |
-| `diann_v2_2_0`            | 2.2.0              | `ghcr.io/bigbio/diann:2.2.0`               | Speed optimizations (up to 1.6x on HPC). Parquet output.                                                                                     |
-| `diann_v2_3_2`            | 2.3.2              | `ghcr.io/bigbio/diann:2.3.2`               | DDA support (`--dda`), InfinDIA, up to 9 variable mods.                                                                                      |
-| `diann_v2_5_0`            | 2.5.0              | `ghcr.io/bigbio/diann:2.5.0`               | Up to 70% more protein IDs. DL model fine-tuning and selection.                                                                              |
-| `diann_v2_5_1`            | 2.5.1              | `ghcr.io/bigbio/diann:2.5.1`               | Academic build of DIA-NN 2.5.1.                                                                                                              |
-| `diann_v2_5_1_enterprise` | 2.5.1 (Enterprise) | `ghcr.io/bigbio/diann-enterprise:2.5.1`    | Enterprise build. Knowledge Base (`--enable_kb`) + extra report QC metrics. Requires a license. See [DIA-NN Enterprise](#dia-nn-enterprise). |
-
-**Version-dependent features:** Some parameters are only available with newer DIA-NN versions. The pipeline handles version compatibility automatically:
-
-- **QuantUMS** (`--quantums`): Requires >= 1.9.2. The `--direct-quant` flag is automatically skipped for DIA-NN 1.8.x where direct quantification is the only mode.
-- **DDA mode** (`--dda`): Requires >= 2.3.2. The pipeline will error if enabled with an older version.
-- **InfinDIA** (`--enable_infin_dia`): Requires >= 2.3.0.
-
-Usage:
-
-```bash
-# Run with DIA-NN 2.2.0
-nextflow run bigbio/quantmsdiann \
-    -profile diann_v2_2_0,docker \
-    --input experiment.sdrf.tsv --database db.fasta --outdir results
-
-# Run with DIA-NN 2.3.2 (latest, enables DDA and InfinDIA)
-nextflow run bigbio/quantmsdiann \
-    -profile diann_v2_3_2,docker \
-    --input experiment.sdrf.tsv --database db.fasta --outdir results
-```
-
-> [!NOTE]
-> DIA-NN 1.8.1 uses a public BioContainers image (no auth). DIA-NN 2.x images are on `ghcr.io/bigbio` and require GHCR authentication. You can also build containers yourself from [quantms-containers](https://github.com/bigbio/quantms-containers).
-
-### DIA-NN Enterprise
-
-The **DIA-NN Enterprise** build (profile `diann_v2_5_1_enterprise`) adds the **Knowledge Base** option (`--enable_kb` → DIA-NN `--kb`), which boosts identifications — most noticeably on human samples (e.g. immunopeptidomics, single-cell-like amounts), with smaller gains on other data. It also emits extra QC metrics in the main report (e.g. protein-level `Empirical.Quality`, peak-shape metrics). `--kb` is applied only to the first-pass search; it is ignored in the second pass and in library generation. The Enterprise profile enables Knowledge Base **by default** — disable it for a run with `--enable_kb false`.
-
-Enterprise requires a **license key** and a **private container** (`ghcr.io/bigbio/diann-enterprise:2.5.1`, built from the Enterprise recipe in [quantms-containers](https://github.com/bigbio/quantms-containers)). The image bundles the binary and the Knowledge Base model but **no license**.
-
-```bash
-nextflow run bigbio/quantmsdiann \
-    -profile diann_v2_5_1_enterprise,docker \
-    --enable_kb \
-    --diann_license /path/to/DIA-NN-License-Key \
-    --input experiment.sdrf.tsv --database db.fasta --outdir results
-```
-
-> [!IMPORTANT]
-> The Enterprise license key is issued per user and is **not redistributable**. Never commit it or bake it into a shared image. Supply it at runtime with `--diann_license <file>` (staged into each DIA-NN step and passed as `--license`). If you omit `--diann_license`, DIA-NN falls back to a key placed next to the binary inside a strictly private local build. `--enable_kb` requires the Enterprise profile; the pipeline errors otherwise.
-
-### Using custom containers on HPC
-
-For HPC/Singularity deployments with local `.sif` files, create a config that overrides the container:
-
-```groovy
-// hpc_diann.config
-process {
-    withLabel: diann {
-        container = '/path/to/sif/diann-2.5.0.sif'
-    }
-}
-```
-
-```bash
-nextflow run bigbio/quantmsdiann \
-    -profile singularity -c hpc_diann.config \
-    --diann_version '2.5.0' \
-    --input experiment.sdrf.tsv --database db.fasta --outdir results
-```
-
-> [!IMPORTANT]
-> Set `--diann_version` to match your container. Do **not** combine with `-profile diann_v2_5_0` (it would override your local path).
-
-For the full guide on building containers, GHCR authentication, version switching, and SLURM deployment, see the [Containers documentation](https://quantmsdiann.quantms.org/containers/).
-
-## Fine-Tuning Deep Learning Models (DIA-NN 2.0+)
-
-DIA-NN uses deep learning models to predict retention time (RT), ion mobility (IM), and fragment ion intensities. For non-standard modifications, fine-tuning these models on real data can substantially improve detection.
-
-**When to fine-tune:** Fine-tuning is beneficial for custom chemical labels (e.g., mTRAQ, dimethyl), exotic PTMs, or unmodified cysteines. Standard modifications (Phospho, Oxidation, Acetylation, Deamidation, diGlycine) do not require fine-tuning — DIA-NN's built-in models already handle them well.
-
-### How fine-tuning works
-
-DIA-NN's neural networks encode each amino acid and modification as a "token" — an integer ID (0-255) mapped in a dictionary file (`dict.txt`). The default dictionary ships with DIA-NN and covers common modifications. When you fine-tune, DIA-NN:
-
-1. Reads a spectral library containing empirically observed peptides with the modifications of interest
-2. Learns how those modifications affect RT, IM, and fragmentation patterns
-3. Outputs new model files (`.pt` PyTorch format) and an expanded dictionary (`dict.txt`) that includes tokens for the new modifications
-
-The fine-tuned models are then used in place of the defaults when generating predicted spectral libraries.
-
-> [!NOTE]
-> **`--tune-lib` cannot be combined with `--gen-spec-lib` in a single DIA-NN invocation** ([confirmed in DIA-NN #1499](https://github.com/vdemichev/DiaNN/issues/1499)). Fine-tuning and library generation are still separate DIA-NN commands, but quantmsdiann can now orchestrate them within a single pipeline run when `--enable_fine_tuning` is used. Integrated fine-tuning requires DIA-NN v2.5.0 or later. The two-run/manual approach below is only needed when integrated fine-tuning is not enabled, or when using an older DIA-NN version that does not support this workflow.
-
-### Manual fallback workflow (two-run fine-tuning)
-
-**Run 1 — Generate the tuning library:**
-
-Run quantmsdiann normally. The empirical library produced by the ASSEMBLE_EMPIRICAL_LIBRARY step (after preliminary analysis) serves as the tuning library. This library contains empirically observed RT, IM, and fragment intensities for peptides bearing the modifications of interest.
-
-```bash
-# First run: standard pipeline to produce empirical library
-nextflow run bigbio/quantmsdiann \
-    -profile diann_v2_5_0,docker \
-    --input experiment.sdrf.tsv --database db.fasta --outdir results_run1
-# Output: results_run1/library_generation/assemble_empirical_library/empirical_library.parquet
-```
-
-**Fine-tune models (outside the pipeline):**
-
-```bash
-# Fine-tune RT and IM models using the empirical library
-diann --tune-lib /abs/path/to/empirical_library.parquet --tune-rt --tune-im
-
-# Optionally also fine-tune the fragmentation model (quality-sensitive — verify vs base model)
-diann --tune-lib /abs/path/to/empirical_library.parquet --tune-rt --tune-im --tune-fr
-```
-
-DIA-NN will output (named after the input library):
-
-- `empirical_library.dict.txt` — expanded tokenizer dictionary with new modification tokens
-- `empirical_library.rt.d0.pt` (+ `.d1.pt`, `.d2.pt`) — fine-tuned RT models (3 distillation levels)
-- `empirical_library.im.d0.pt` (+ `.d1.pt`, `.d2.pt`) — fine-tuned IM models
-- `empirical_library.fr.d0.pt` (+ `.d1.pt`, `.d2.pt`) — fine-tuned fragment models (if `--tune-fr`)
-
-Additional tuning parameters: `--tune-lr` (learning rate, default 0.0005), `--tune-restrict-layers` (fix RNN weights), `--tune-level` (limit to a specific distillation level 0/1/2).
-
-**Run 2 — Re-run the pipeline with fine-tuned models:**
-
-```bash
-# Second run: use tuned models for in-silico library generation and all downstream steps
-nextflow run bigbio/quantmsdiann \
-    -profile diann_v2_5_0,docker \
-    --input experiment.sdrf.tsv --database db.fasta \
-    --extra_args "--tokens /abs/path/to/empirical_library.dict.txt --rt-model /abs/path/to/empirical_library.rt.d0.pt --im-model /abs/path/to/empirical_library.im.d0.pt" \
-    --outdir results_run2
-```
-
-The `--tokens`, `--rt-model`, and `--im-model` flags are passed to all DIA-NN steps via `--extra_args`, so the in-silico library generation uses the fine-tuned models to produce better-predicted spectra for the non-standard modifications.
-
-> [!IMPORTANT]
-> Use **absolute paths** for model files. The `--parent` flag is blocked by the pipeline (it controls the container's DIA-NN installation path).
-
-### Integrated fine-tuning step
-
-The pipeline now includes an optional integrated fine-tuning phase, which eliminates the need for two separate runs. You can enable this feature by using the `--enable_fine_tuning` flag. The integrated workflow is:
-
-```
-INSILICO_LIBRARY → PRELIMINARY_ANALYSIS → ASSEMBLE_EMPIRICAL_LIBRARY
-    → [FINE_TUNE_MODELS] → INSILICO_LIBRARY (with tuned models)
-    → INDIVIDUAL_ANALYSIS → FINAL_QUANTIFICATION
-```
-
-This would be gated by a `--enable_fine_tuning` parameter. [@vdemichev](https://github.com/vdemichev): would this approach work correctly — using the empirical library from assembly as `--tune-lib`, then regenerating the in-silico library with the tuned models before proceeding to individual analysis? Or would you recommend a different integration point?
-
-## Verbose Module Output
-
-By default, only final result files are published. For debugging or detailed inspection, the `verbose_modules` profile publishes all intermediate files from every DIA-NN step:
-
-```bash
-nextflow run bigbio/quantmsdiann -profile verbose_modules,docker ...
-```
-
-This publishes intermediate outputs to descriptive subdirectories (e.g. `spectra/thermorawfileparser/`, `diann_preprocessing/preliminary_analysis/`, `library_generation/`). See [Output: Verbose Output Structure](output.md#verbose-output-structure) for the full directory layout.
-
-## Container Version Override Guide
-
-You can override the container image for any process without modifying pipeline code. This is useful for testing custom or newer DIA-NN builds.
-
-**Docker:**
-
-```groovy
-// custom_container.config
-process {
-    withLabel: diann {
-        container = 'my-registry.io/diann:custom-build'
-    }
-}
-```
-
-```bash
-nextflow run bigbio/quantmsdiann -c custom_container.config -profile docker ...
-```
-
-**Singularity with caching:**
-
-```groovy
-// custom_singularity.config
-singularity.cacheDir = '/path/to/singularity/cache'
-
-process {
-    withLabel: diann {
-        container = '/path/to/diann_custom.sif'
-    }
-}
-```
-
-```bash
-nextflow run bigbio/quantmsdiann -c custom_singularity.config -profile singularity ...
-```
-
-## SLURM Example
-
-For running on HPC clusters with SLURM, the pipeline includes a reference configuration at `conf/pride_codon_slurm.config`. Use it via the `pride_slurm` profile:
-
-```bash
-nextflow run bigbio/quantmsdiann \
-    -profile pride_slurm \
-    --input experiment.sdrf.tsv --database db.fasta --outdir results
-```
-
-This profile enables Singularity, sets SLURM as the executor, and provides resource scaling for large experiments. Adapt it as a template for your own cluster by creating a custom config file.
-
-## Optional outputs
-
-By default, only final result files are published. Intermediate files can be exported using `save_*` parameters or via `ext.*` properties in a custom Nextflow config.
-
-| Parameter            | Default | Description                                                                                 |
-| -------------------- | ------- | ------------------------------------------------------------------------------------------- |
-| `--save_speclib_tsv` | `false` | Publish the TSV spectral library from in-silico library generation to `library_generation/` |
-
-**Using a parameter:**
-
-```bash
-nextflow run bigbio/quantmsdiann \
-    --input 'experiment.sdrf.tsv' \
-    --database 'proteins.fasta' \
-    --save_speclib_tsv \
-    --outdir './results' \
-    -profile docker
-```
-
-**Using a custom Nextflow config (ext properties):**
-
-```groovy
-// custom.config
-process {
-    withName: '.*:INSILICO_LIBRARY_GENERATION' {
-        ext.publish_speclib_tsv = true
-    }
-}
-```
-
-```bash
-nextflow run bigbio/quantmsdiann -c custom.config ...
-```
-
-For full verbose output of all intermediate files (useful for debugging), use the `verbose_modules` profile:
-
-```bash
-nextflow run bigbio/quantmsdiann -profile verbose_modules,docker ...
-```
-
-## QPX Export (Experimental, 2.1.0)
-
-When `--enable_qpx_export` is set, the pipeline converts DIA-NN output to a [QPX Parquet](https://github.com/bigbio/qpx) dataset and a [MuData](https://mudata.readthedocs.io/) `.h5mu` file in a single step. Disabled by default; enable with `--enable_qpx_export` and supply `--project_accession` (required when QPX export is on).
-
-```bash
-nextflow run bigbio/quantmsdiann -profile docker \
-    --input experiment.sdrf.tsv --database db.fasta \
-    --enable_qpx_export \
-    --project_accession PXD019909 \
-    --outdir results
-```
-
-This writes to `results/qpx/`:
-
-- `<prefix>.feature.parquet`, `<prefix>.pg.parquet` — precursor and protein-group intensities
-- `<prefix>.sample.parquet`, `<prefix>.run.parquet` — SDRF-derived metadata
-- `<prefix>.h5mu` — MuData container (modalities: `precursors`, `proteins`)
-
-`<prefix>` defaults to `diann` and is overridden by `--project_accession`.
-
-### Parameters
-
-| Parameter             | Default | Description                                                                                 |
-| --------------------- | ------- | ------------------------------------------------------------------------------------------- |
-| `--enable_qpx_export` | `false` | Export DIA-NN output to QPX Parquet + MuData                                                |
-| `--project_accession` | `null`  | PRIDE/PX accession used as output prefix and metadata (required when `--enable_qpx_export`) |
-
-### Quick test
-
-```bash
-nextflow run bigbio/quantmsdiann -profile test_dia_qpx,docker --outdir results_qpx_test
-```
+Specify the path to a specific config file (this is a core Nextflow command). See the [nf-core website documentation](https://nf-co.re/usage/configuration) for more information.
 
 ## Custom configuration
 
 ### Resource requests
 
-Each step in the pipeline has default resource requirements. If a job exits with error code `137` or `143` (exceeded resources), it will automatically resubmit with higher requests (2x, then 3x original).
+Whilst the default requirements set within the pipeline will hopefully work for most people and with most input data, you may find that you want to customise the compute resources that the pipeline requests. Each step in the pipeline has a default set of requirements for number of CPUs, memory and time. For most of the pipeline steps, if the job exits with any of the error codes specified [here](https://github.com/nf-core/rnaseq/blob/4c27ef5610c87db00c3c5a3eed10b1d161abf575/conf/base.config#L18) it will automatically be resubmitted with higher resources request (2 x original, then 3 x original). If it still fails after the third attempt then the pipeline execution is stopped.
 
-To customize resources for a specific process:
+To change the resource requests, please see the [max resources](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#set-max-resources) and [customise process resources](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#customize-process-resources) section of the nf-core website.
 
-```nextflow
-process {
-    withName: 'BIGBIO_QUANTMSDIANN:QUANTMSDIANN:DIA:FINAL_QUANTIFICATION' {
-        memory = 100.GB
-    }
-}
-```
+### Custom Containers
 
-Save this to a file and pass via `-c custom.config`.
+In some cases, you may wish to change the container or conda environment used by a pipeline steps for a particular tool. By default, nf-core pipelines use containers and software from the [biocontainers](https://biocontainers.pro/) or [bioconda](https://bioconda.github.io/) projects. However, in some cases the pipeline specified version maybe out of date.
+
+To use a different container from the default container or conda environment specified in a pipeline, please see the [updating tool versions](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#update-tool-versions) section of the nf-core website.
+
+### Custom Tool Arguments
+
+A pipeline might not always support every possible argument or option of a particular tool used in pipeline. Fortunately, nf-core pipelines provide some freedom to users to insert additional parameters that the pipeline does not include by default.
+
+To learn how to provide additional arguments to a particular tool of the pipeline, please see the [customising tool arguments](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#modifying-tool-arguments) section of the nf-core website.
+
+### nf-core/configs
+
+In most cases, you will only need to create a custom config as a one-off but if you and others within your organisation are likely to be running nf-core pipelines regularly and need to use the same settings regularly it may be a good idea to request that your custom config file is uploaded to the `nf-core/configs` git repository. Before you do this please can you test that the config file works with your pipeline of choice using the `-c` parameter. You can then create a pull request to the `nf-core/configs` repository with the addition of your config file, associated documentation file (see examples in [`nf-core/configs/docs`](https://github.com/nf-core/configs/tree/master/docs)), and amending [`nfcore_custom.config`](https://github.com/nf-core/configs/blob/master/nfcore_custom.config) to include your custom profile.
+
+See the main [Nextflow documentation](https://www.nextflow.io/docs/latest/config.html) for more information about creating your own configuration files.
+
+If you have any questions or issues please send us a message on [Slack](https://nf-co.re/join/slack) on the [`#configs` channel](https://nfcore.slack.com/channels/configs).
 
 ## Running in the background
 
-Use `screen`, `tmux`, or the Nextflow `-bg` flag to run the pipeline in the background:
+Nextflow handles job submissions and supervises the running jobs. The Nextflow process must run until the pipeline is finished.
 
-```bash
-nextflow run bigbio/quantmsdiann -profile docker --input experiment.sdrf.tsv --database db.fasta --outdir results -bg
-```
+The Nextflow `-bg` flag launches Nextflow in the background, detached from your terminal so that the workflow does not stop if you log out of your session. The logs are saved to a file.
 
-## Developer testing with local containers
-
-When developing changes to `sdrf-pipelines` or `quantms-utils`, you can build local Docker containers and test them with the pipeline without publishing to a registry.
-
-### 1. Build local dev containers
-
-```bash
-# From sdrf-pipelines repo
-cd /path/to/sdrf-pipelines
-docker build -f Dockerfile.dev -t local/sdrf-pipelines:dev .
-
-# From quantms-utils repo
-cd /path/to/quantms-utils
-docker build -f Dockerfile.dev -t local/quantms-utils:dev .
-```
-
-### 2. Run the pipeline with local containers
-
-Use the `test_dia_local.config` to override container references:
-
-```bash
-nextflow run main.nf \
-    -profile test_dia,docker \
-    -c conf/tests/test_dia_local.config \
-    --outdir results
-```
-
-This config (`conf/tests/test_dia_local.config`) overrides:
-
-- `SDRF_PARSING` → `local/sdrf-pipelines:dev`
-- `SAMPLESHEET_CHECK` → `local/quantms-utils:dev`
-- `DIANN_MSSTATS` → `local/quantms-utils:dev`
-
-### 3. Using pre-converted mzML files
-
-To skip ThermoRawFileParser (useful on macOS/ARM where Mono crashes):
-
-```bash
-# Convert raw files with ThermoRawFileParser v2.0+
-docker run --rm --platform=linux/amd64 \
-    -v /path/to/raw:/data -v /path/to/mzml:/out \
-    quay.io/biocontainers/thermorawfileparser:2.0.0.dev--h9ee0642_0 \
-    ThermoRawFileParser -d /data -o /out -f 2
-
-# Run pipeline with pre-converted files
-nextflow run main.nf \
-    -profile test_dia,docker \
-    -c conf/tests/test_dia_local.config \
-    --root_folder /path/to/mzml \
-    --local_input_type mzML \
-    --outdir results
-```
+Alternatively, you can use `screen` / `tmux` or similar tool to create a detached session which you can log back into at a later time.
+Some HPC setups also allow you to run nextflow within a cluster job submitted your job scheduler (from where it submits more jobs).
 
 ## Nextflow memory requirements
 
-Add the following to your environment to limit Java memory:
+In some cases, the Nextflow Java virtual machines can start to request a large amount of memory.
+We recommend adding the following line to your environment to limit this (typically in `~/.bashrc` or `~./bash_profile`):
 
 ```bash
 NXF_OPTS='-Xms1g -Xmx4g'

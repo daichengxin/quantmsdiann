@@ -8,15 +8,10 @@ markdownPlugin: checklist
 Hi there!
 Thanks for taking an interest in improving bigbio/quantmsdiann.
 
-bigbio/quantmsdiann is the DIA-NN-based pipeline in the [quantms](https://github.com/bigbio/quantms) ecosystem, alongside `bigbio/quantms` (DDA / multi-engine) and the `bigbio/quantms.io` data-format specification. End-user documentation lives at <https://docs.quantms.org/>.
-
 This page describes the recommended nf-core way to contribute to both bigbio/quantmsdiann and nf-core pipelines in general, including:
 
 - [General contribution guidelines](#general-contribution-guidelines): common procedures or guides across all nf-core pipelines.
 - [Pipeline-specific contribution guidelines](#pipeline-specific-contribution-guidelines): procedures or guides specific to the development conventions of bigbio/quantmsdiann.
-
-> [!NOTE]
-> If you need help using or modifying bigbio/quantmsdiann, the best place to ask is the nf-core Slack [#quantmsdiann channel](https://nfcore.slack.com/channels/quantmsdiann) ([join nf-core Slack](https://nf-co.re/join/slack)). General quantms ecosystem discussion happens on [#quantms](https://nfcore.slack.com/channels/quantms).
 
 ## General contribution guidelines
 
@@ -113,7 +108,7 @@ Please also refer to the [pipeline-specific contribution guidelines](#pipeline-s
 - [ ] Perform local tests to validate that the new code works as expected.
   - [ ] If applicable, add a new test in the `tests` directory.
 - [ ] Update `usage.md`, `output.md`, and `citation.md` as appropriate.
-- [ ] [Lint](lint) the code with nf-core/tools.
+- [ ] [Lint](#lint-tests) the code with nf-core/tools.
 - [ ] Update any diagrams or pipeline images as necessary.
 - [ ] Update MultiQC config `assets/multiqc_config.yml` so relevant suffixes, file name cleanup, and module plots are in the appropriate order.
 - [ ] If applicable, create a [MultiQC](https://seqera.io/multiqc/) module.
@@ -151,7 +146,7 @@ Specify these with generic `withLabel:` selectors, so they can be shared across 
 nf-core provides a set of standard labels that you should follow where possible, as seen in the [nf-core pipeline template](https://github.com/nf-core/tools/blob/main/nf_core/pipeline-template/conf/base.config).
 These labels define resource defaults for single-core processes, modules that require a GPU, and different levels of multi-core configurations with increasing memory requirements.
 
-Values assigned within these labels can be dynamically passed to a tool using the the `${task.cpus}` and `${task.memory}` Nextflow variables in the `script:` block of a module (see an example in the [modules repository](https://github.com/nf-core/modules/blob/bd1b6a40f55933d94b8c9ca94ec8c1ea0eaf4b82/modules/nf-core/samtools/bam2fq/main.nf#L30)).
+Values assigned within these labels can be dynamically passed to a tool using the `${task.cpus}` and `${task.memory}` Nextflow variables in the `script:` block of a module (see an example in the [modules repository](https://github.com/nf-core/modules/blob/bd1b6a40f55933d94b8c9ca94ec8c1ea0eaf4b82/modules/nf-core/samtools/bam2fq/main.nf#L30)).
 
 #### Nextflow version bumping
 
@@ -167,42 +162,4 @@ If you update images or graphics, follow the nf-core [style guidelines](https://
 
 ## Pipeline specific contribution guidelines
 
-### DIA-NN version handling
-
-bigbio/quantmsdiann supports multiple DIA-NN versions (1.8.1, 2.1.0, 2.2.0, 2.3.2, 2.5.0) selected via a profile, e.g. `-profile diann_v2_5_0,docker`. Per-version configuration lives in `conf/diann_versions/v<version>.config`; each profile sets `params.diann_version` and pins the DIA-NN container.
-
-When adding a feature that depends on a specific DIA-NN version:
-
-- [ ] Use `lib/VersionUtils.groovy` for semantic version comparisons — do not compare DIA-NN version strings directly.
-- [ ] Add the new flag's blocking rules to `lib/BlockedFlags.groovy` so older versions fail fast with a clear error rather than silently producing incorrect output.
-- [ ] Guard the feature in the relevant module and document the minimum required DIA-NN version in the parameter help text and in the `[Unreleased]` section of `CHANGELOG.md`.
-- [ ] Container engine and DIA-NN version are decoupled: combine them via `-profile diann_v2_5_0,docker` (or `,singularity`). Do not hardcode an engine inside `conf/diann_versions/v*.config`.
-
-### SDRF-driven inputs
-
-Inputs are described via [SDRF-Proteomics](https://github.com/bigbio/proteomics-sample-metadata) TSV files. The `subworkflows/local/create_input_channel` and `modules/local/sdrf_parsing` modules handle SDRF parsing and per-row parameter extraction (mass tolerances, modifications, fractions, ...). For local-only inputs without an SDRF, `--root_folder` and `--local_input_type` are used — see `docs/usage.md` for the full input matrix.
-
-### Local module layout
-
-Project-specific code lives under `modules/local/`, `subworkflows/local/`, and `lib/`:
-
-- `modules/local/diann/` — per-step DIA-NN modules (in-silico library, preliminary analysis, individual analysis, empirical library assembly, final quantification, MSstats conversion, fine-tuning, `generate_cfg`)
-- `modules/local/openms/`, `pmultiqc/`, `sdrf_parsing/`, `samplesheet_check/`, `utils/` — supporting modules
-- `modules/bigbio/thermorawfileparser` — kept under `modules/bigbio/` (not `modules/nf-core/`) because the published nf-core version does not match the build needed by quantmsdiann
-- `lib/BlockedFlags.groovy`, `lib/VersionUtils.groovy` — shared Groovy helpers used by the DIA-NN modules
-
-### Test profiles
-
-| Profile                     | Purpose                                                                                      |
-| --------------------------- | -------------------------------------------------------------------------------------------- |
-| `test_dia`                  | DIA-NN 1.8.1 default smoke test (public data, no auth) — fastest, use when iterating locally |
-| `test_dia_dotd`             | Bruker `.d` input handling                                                                   |
-| `test_dia_2_2_0`            | DIA-NN 2.2.0 features                                                                        |
-| `test_dia_quantums`         | QuantUMS scoring mode                                                                        |
-| `test_dia_parquet`          | Parquet fragment export                                                                      |
-| `test_latest_dia`           | Latest DIA-NN with all features enabled                                                      |
-| `test_full_dia`             | Larger end-to-end validation run                                                             |
-| `test_dda`                  | DDA mode (requires DIA-NN ≥ 2.3.2)                                                           |
-| `test_dia_skip_preanalysis` | Skip preliminary analysis with a provided spectral library                                   |
-
-Add a new test profile under `conf/tests/test_<name>.config` and register it in the `profiles { ... }` block of `nextflow.config`.
+<!-- TODO nf-core: Add any pipeline specific contribution guidelines here, such as coding styles, procedures, checklists etc. -->
